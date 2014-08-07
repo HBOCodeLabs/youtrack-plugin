@@ -1,6 +1,9 @@
 package org.jenkinsci.plugins.youtrack.youtrackapi;
 
+import lombok.extern.java.Log;
+
 import org.jenkinsci.plugins.youtrack.Command;
+import org.apache.commons.lang.StringUtils;
 import org.xml.sax.Attributes;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
@@ -19,16 +22,12 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * This class contains methods for communication with a YouTrack server using the REST API for version 4 of YouTrack.
  */
+@Log
 public class YouTrackServer {
-    /**
-     * Logger for this class.
-     */
-    private static final Logger LOGGER = Logger.getLogger(YouTrackServer.class.getName());
     /**
      * The url of the YouTrack server.
      */
@@ -55,9 +54,8 @@ public class YouTrackServer {
         } else {
             cmd.setStatus(Command.Status.FAILED);
         }
-        user.setUsername(user.getUsername());
-        try {
 
+        try {
             String params = "project="+URLEncoder.encode(project, "UTF-8")+"&summary="+URLEncoder.encode(title, "UTF-8")+"&description=" + URLEncoder.encode(description, "UTF-8");
 
             URL url = new URL(serverUrl + "/rest/issue?" + params);
@@ -69,20 +67,7 @@ public class YouTrackServer {
             urlConnection.setRequestMethod("PUT");
 
             int responseCode = urlConnection.getResponseCode();
-            if (responseCode == HttpURLConnection.HTTP_CREATED) {
-                System.out.println("Created issue");
-                String location = urlConnection.getHeaderField("Location");
-                String issueId = location.substring(location.lastIndexOf("/") + 1);
-
-
-                Issue issue = new Issue(issueId);
-                if (command != null && !command.equals("")) {
-                    applyCommand(siteName, user, issue, command, "", null, false);
-                }
-                cmd.setIssueId(issueId);
-                cmd.setStatus(Command.Status.OK);
-                return cmd;
-            } else {
+            if (responseCode != HttpURLConnection.HTTP_CREATED) {
                 cmd.setStatus(Command.Status.FAILED);
 
                 BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(urlConnection.getErrorStream()));
@@ -102,17 +87,26 @@ public class YouTrackServer {
                 } catch (SAXException e) {
                     cmd.setResponse(e.getMessage());
                 }
-                System.out.println("Did not create issue: " + cmd.getResponse());
+                log.log(Level.WARNING, "Did not create issue: " + cmd.getResponse());
+                return cmd;
             }
+            String location = urlConnection.getHeaderField("Location");
+            String issueId = location.substring(location.lastIndexOf("/") + 1);
+            log.log(Level.INFO, "Created issue " + issueId);
 
-        } catch (MalformedURLException e) {
-            cmd.setResponse(e.getMessage());
-            LOGGER.log(Level.WARNING, "Could not add to bundle", e);
+            Issue issue = new Issue(issueId);
+            if (StringUtils.isNotBlank(command)) {
+                applyCommand(siteName, user, issue, command, "", null, false);
+            }
+            cmd.setIssueId(issueId);
+            cmd.setStatus(Command.Status.OK);
+
+            return cmd;
         } catch (IOException e) {
             cmd.setResponse(e.getMessage());
-            LOGGER.log(Level.WARNING, "Could not add to bundle", e);
+            log.log(Level.WARNING, "Could not add to bundle", e);
+            return cmd;
         }
-        return cmd;
     }
 
     public List<Group> getGroups(User user) {
@@ -135,15 +129,11 @@ public class YouTrackServer {
                     saxParser.parse(urlConnection.getInputStream(), dh);
                     return dh.getGroups();
                 }
-            } catch (ParserConfigurationException e) {
-                LOGGER.log(Level.WARNING, "Could not get YouTrack Projects", e);
-            } catch (SAXException e) {
-                LOGGER.log(Level.WARNING, "Could not get YouTrack Projects", e);
+            } catch (ParserConfigurationException|SAXException e) {
+                log.log(Level.WARNING, "Could not get YouTrack Projects", e);
             }
-        } catch (MalformedURLException e) {
-            LOGGER.log(Level.WARNING, "Could not get YouTrack Projects", e);
         } catch (IOException e) {
-            LOGGER.log(Level.WARNING, "Could not get YouTrack Projects", e);
+            log.log(Level.WARNING, "Could not get YouTrack Projects", e);
         }
         return groups;
     }
@@ -177,15 +167,11 @@ public class YouTrackServer {
                     return stateBundle;
 
                 }
-            } catch (ParserConfigurationException e) {
-                LOGGER.log(Level.WARNING, "Could not get YouTrack Projects", e);
-            } catch (SAXException e) {
-                LOGGER.log(Level.WARNING, "Could not get YouTrack Projects", e);
+            } catch (ParserConfigurationException|SAXException e) {
+                log.log(Level.WARNING, "Could not get YouTrack Projects", e);
             }
-        } catch (MalformedURLException e) {
-            LOGGER.log(Level.WARNING, "Could not get YouTrack Projects", e);
         } catch (IOException e) {
-            LOGGER.log(Level.WARNING, "Could not get YouTrack Projects", e);
+            log.log(Level.WARNING, "Could not get YouTrack Projects", e);
         }
         return null;
     }
@@ -216,15 +202,11 @@ public class YouTrackServer {
                         return null;
                     }
                 }
-            } catch (ParserConfigurationException e) {
-                LOGGER.log(Level.WARNING, "Could not get YouTrack Projects", e);
-            } catch (SAXException e) {
-                LOGGER.log(Level.WARNING, "Could not get YouTrack Projects", e);
+            } catch (ParserConfigurationException|SAXException e) {
+                log.log(Level.WARNING, "Could not get YouTrack Projects", e);
             }
-        } catch (MalformedURLException e) {
-            LOGGER.log(Level.WARNING, "Could not get YouTrack Projects", e);
         } catch (IOException e) {
-            LOGGER.log(Level.WARNING, "Could not get YouTrack Projects", e);
+            log.log(Level.WARNING, "Could not get YouTrack Projects", e);
         }
         return null;
     }
@@ -249,15 +231,11 @@ public class YouTrackServer {
                     saxParser.parse(urlConnection.getInputStream(), dh);
                     return dh.getFields();
                 }
-            } catch (ParserConfigurationException e) {
-                LOGGER.log(Level.WARNING, "Could not get YouTrack Projects", e);
-            } catch (SAXException e) {
-                LOGGER.log(Level.WARNING, "Could not get YouTrack Projects", e);
+            } catch (ParserConfigurationException|SAXException e) {
+                log.log(Level.WARNING, "Could not get YouTrack Projects", e);
             }
-        } catch (MalformedURLException e) {
-            LOGGER.log(Level.WARNING, "Could not get YouTrack Projects", e);
         } catch (IOException e) {
-            LOGGER.log(Level.WARNING, "Could not get YouTrack Projects", e);
+            log.log(Level.WARNING, "Could not get YouTrack Projects", e);
         }
         return fields;
     }
@@ -286,15 +264,11 @@ public class YouTrackServer {
                 Project.ProjectListHandler dh = new Project.ProjectListHandler();
                 saxParser.parse(urlConnection.getInputStream(), dh);
                 return dh.getProjects();
-            } catch (ParserConfigurationException e) {
-                LOGGER.log(Level.WARNING, "Could not get YouTrack Projects", e);
-            } catch (SAXException e) {
-                LOGGER.log(Level.WARNING, "Could not get YouTrack Projects", e);
+            } catch (ParserConfigurationException|SAXException e) {
+                log.log(Level.WARNING, "Could not get YouTrack Projects", e);
             }
-        } catch (MalformedURLException e) {
-            LOGGER.log(Level.WARNING, "Could not get YouTrack Projects", e);
         } catch (IOException e) {
-            LOGGER.log(Level.WARNING, "Could not get YouTrack Projects", e);
+            log.log(Level.WARNING, "Could not get YouTrack Projects", e);
         }
         return null;
 
@@ -343,7 +317,7 @@ public class YouTrackServer {
 
             OutputStreamWriter outputStreamWriter = new OutputStreamWriter(urlConnection.getOutputStream());
             outputStreamWriter.write("comment=" + URLEncoder.encode(comment, "UTF-8"));
-            if (group != null && !group.equals("")) {
+            if (StringUtils.isNotBlank(group)) {
                 outputStreamWriter.write("&group=" + group);
             }
             if (silent) {
@@ -370,16 +344,12 @@ public class YouTrackServer {
                     ErrorHandler errorHandler = new ErrorHandler();
                     saxParser.parse(new InputSource(new StringReader(stringBuilder.toString())), errorHandler);
                     command.setResponse(errorHandler.errorMessage);
-                } catch (ParserConfigurationException e) {
-                    command.setResponse(e.getMessage());
-                } catch (SAXException e) {
+                } catch (ParserConfigurationException|SAXException e) {
                     command.setResponse(e.getMessage());
                 }
             }
-
-
         } catch (IOException e) {
-            LOGGER.log(Level.WARNING, "Could not comment", e);
+            log.log(Level.WARNING, "Could not comment", e);
             command.setResponse(e.getMessage());
         }
         return command;
@@ -411,8 +381,6 @@ public class YouTrackServer {
         }
         cmd.setUsername(user.getUsername());
         try {
-
-
             URL url = new URL(serverUrl + "/rest/issue/" + issue.getId() + "/execute");
             HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
             urlConnection.setDoOutput(true);
@@ -424,9 +392,8 @@ public class YouTrackServer {
 
             OutputStreamWriter outputStreamWriter = new OutputStreamWriter(urlConnection.getOutputStream());
 
-
             String str = "command=" + URLEncoder.encode(command, "UTF-8");
-            if (comment != null) {
+            if (StringUtils.isNotBlank(comment)) {
                 str += "&comment=" + URLEncoder.encode(comment, "UTF-8");
             }
             if (runAs != null) {
@@ -443,37 +410,30 @@ public class YouTrackServer {
             if (responseCode == HttpURLConnection.HTTP_OK) {
                 cmd.setStatus(Command.Status.OK);
                 return cmd;
-            } else {
-
-
-                cmd.setStatus(Command.Status.FAILED);
-
-                BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(urlConnection.getErrorStream()));
-                String l;
-                StringBuilder stringBuilder = new StringBuilder();
-                while ((l = bufferedReader.readLine()) != null) {
-                    stringBuilder.append(l).append("\n");
-                }
-                try {
-                    SAXParserFactory saxParserFactory = SAXParserFactory.newInstance();
-                    SAXParser saxParser = saxParserFactory.newSAXParser();
-                    ErrorHandler errorHandler = new ErrorHandler();
-                    saxParser.parse(new InputSource(new StringReader(stringBuilder.toString())), errorHandler);
-                    cmd.setResponse(errorHandler.errorMessage);
-                } catch (ParserConfigurationException e) {
-                    cmd.setResponse(e.getMessage());
-                } catch (SAXException e) {
-                    cmd.setResponse(e.getMessage());
-                }
-
-
-                LOGGER.log(Level.WARNING, "Could not apply command. Server response: " + stringBuilder.toString());
             }
 
+            cmd.setStatus(Command.Status.FAILED);
 
+            BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(urlConnection.getErrorStream()));
+            String l;
+            StringBuilder stringBuilder = new StringBuilder();
+            while ((l = bufferedReader.readLine()) != null) {
+                stringBuilder.append(l).append("\n");
+            }
+            try {
+                SAXParserFactory saxParserFactory = SAXParserFactory.newInstance();
+                SAXParser saxParser = saxParserFactory.newSAXParser();
+                ErrorHandler errorHandler = new ErrorHandler();
+                saxParser.parse(new InputSource(new StringReader(stringBuilder.toString())), errorHandler);
+                cmd.setResponse(errorHandler.errorMessage);
+            } catch (ParserConfigurationException|SAXException e) {
+                cmd.setResponse(e.getMessage());
+            }
+
+            log.log(Level.WARNING, "Could not apply command. Server response: " + stringBuilder.toString());
         } catch (IOException e) {
             cmd.setResponse(e.getMessage());
-            LOGGER.log(Level.WARNING, "Could not apply command", e);
+            log.log(Level.WARNING, "Could not apply command", e);
         }
         return cmd;
     }
@@ -502,12 +462,8 @@ public class YouTrackServer {
                 saxParser.parse(urlConnection.getInputStream(), dh);
                 return dh.getUser();
             }
-        } catch (IOException e) {
-            LOGGER.log(Level.WARNING, "Could not get user", e);
-        } catch (ParserConfigurationException e) {
-            LOGGER.log(Level.WARNING, "Could not get user", e);
-        } catch (SAXException e) {
-            LOGGER.log(Level.WARNING, "Could not get user", e);
+        } catch (IOException|ParserConfigurationException|SAXException e) {
+            log.log(Level.WARNING, "Could not get user", e);
         }
         return null;
     }
@@ -544,15 +500,11 @@ public class YouTrackServer {
                     user.getCookies().add(string);
                 }
                 user.setLoggedIn(true);
-                return user;
-            } else {
-
-                return user;
             }
-        } catch (MalformedURLException e) {
-            LOGGER.log(Level.WARNING, "Could not login", e);
+
+            return user;
         } catch (IOException e) {
-            LOGGER.log(Level.WARNING, "Could not login", e);
+            log.log(Level.WARNING, "Could not login", e);
         }
         return null;
     }
@@ -620,12 +572,9 @@ public class YouTrackServer {
                 }
             }
 
-        } catch (MalformedURLException e) {
-            cmd.setResponse(e.getMessage());
-            LOGGER.log(Level.WARNING, "Could not add to bundle", e);
         } catch (IOException e) {
             cmd.setResponse(e.getMessage());
-            LOGGER.log(Level.WARNING, "Could not add to bundle", e);
+            log.log(Level.WARNING, "Could not add to bundle", e);
         }
         return cmd;
     }
@@ -657,16 +606,14 @@ public class YouTrackServer {
                     saxParser.parse(urlConnection.getInputStream(), issueHandler);
                     return issueHandler.getIssue();
                 } catch (ParserConfigurationException e) {
-                    LOGGER.log(Level.WARNING, "Could not get issue", e);
+                    log.log(Level.WARNING, "Could not get issue", e);
                 } catch (SAXException e) {
-                    LOGGER.log(Level.WARNING, "Could not get issue", e);
+                    log.log(Level.WARNING, "Could not get issue", e);
                 }
             }
 
-        } catch (MalformedURLException e) {
-            LOGGER.log(Level.WARNING, "Could not get issue", e);
         } catch (IOException e) {
-            LOGGER.log(Level.WARNING, "Could not get issue", e);
+            log.log(Level.WARNING, "Could not get issue", e);
         }
         return null;
     }
@@ -683,15 +630,11 @@ public class YouTrackServer {
                     saxParser.parse(urlConnection.getInputStream(), versionHandler);
                     return versionHandler.version.split(".");
                 }
-            } catch (IOException e) {
-                LOGGER.log(Level.WARNING, "Could not get version", e);
-            } catch (ParserConfigurationException e) {
-                LOGGER.log(Level.WARNING, "Could not get version", e);
-            } catch (SAXException e) {
-                LOGGER.log(Level.WARNING, "Could not get version", e);
+            } catch (IOException|ParserConfigurationException|SAXException e) {
+                log.log(Level.WARNING, "Could not get version", e);
             }
         } catch (MalformedURLException e) {
-            LOGGER.log(Level.WARNING, "Wrong url", e);
+            log.log(Level.WARNING, "Wrong url", e);
         }
         return null;
     }
@@ -704,7 +647,6 @@ public class YouTrackServer {
                 urlConnection.setRequestProperty("Cookie", cookie);
             }
 
-
             int responseCode = urlConnection.getResponseCode();
             if (responseCode == HttpURLConnection.HTTP_OK) {
                 try {
@@ -713,17 +655,13 @@ public class YouTrackServer {
                     BuildBundle.Handler issueHandler = new BuildBundle.Handler();
                     saxParser.parse(urlConnection.getInputStream(), issueHandler);
                     return issueHandler.getBundles();
-                } catch (ParserConfigurationException e) {
-                    LOGGER.log(Level.WARNING, "Could not get issue", e);
-                } catch (SAXException e) {
-                    LOGGER.log(Level.WARNING, "Could not get issue", e);
+                } catch (ParserConfigurationException|SAXException e) {
+                    log.log(Level.WARNING, "Could not get issue", e);
                 }
             }
 
-        } catch (MalformedURLException e) {
-            LOGGER.log(Level.WARNING, "Could not get issue", e);
         } catch (IOException e) {
-            LOGGER.log(Level.WARNING, "Could not get issue", e);
+            log.log(Level.WARNING, "Could not get issue", e);
         }
         return null;
     }
@@ -792,6 +730,4 @@ public class YouTrackServer {
             }
         }
     }
-
-
 }
