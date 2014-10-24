@@ -3,25 +3,23 @@ package org.jenkinsci.plugins.youtrack;
 import hudson.EnvVars;
 import hudson.Launcher;
 import hudson.model.*;
-import org.hamcrest.Matchers;
-import org.hamcrest.core.IsEqual;
 import org.jenkinsci.plugins.youtrack.youtrackapi.User;
 import org.jenkinsci.plugins.youtrack.youtrackapi.YouTrackServer;
-// I don't know why these tests are failing, but there seems to be something wrong with how the buildListener is setup with Mockito.
-import org.junit.Ignore;
 import org.junit.Test;
+import org.mockito.Matchers;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.hamcrest.core.IsEqual.*;
-import static org.junit.Assert.*;
+import static org.hamcrest.core.IsEqual.equalTo;
+import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.*;
 
 public class YoutrackCreateIssueOnBuildFailureTest {
@@ -33,7 +31,7 @@ public class YoutrackCreateIssueOnBuildFailureTest {
         BuildListener buildListener = mock(BuildListener.class);
 
         YoutrackCreateIssueOnBuildFailure youtrackCreateIssueOnBuildFailure =
-                spy(new YoutrackCreateIssueOnBuildFailure("PROJECT", "SUMMARY", "DESCRIPTION", YoutrackCreateIssueOnBuildFailure.FAILURE, null, null));
+                spy(new YoutrackCreateIssueOnBuildFailure("PROJECT", "SUMMARY", "DESCRIPTION", YoutrackCreateIssueOnBuildFailure.FAILURE, null, null, false));
 
         YouTrackSite youTrackSite = new YouTrackSite("site", "user", "password", "http://example.com");
         youTrackSite.setPluginEnabled(false);
@@ -55,7 +53,7 @@ public class YoutrackCreateIssueOnBuildFailureTest {
         BuildListener buildListener = mock(BuildListener.class);
 
         YoutrackCreateIssueOnBuildFailure youtrackCreateIssueOnBuildFailure =
-                spy(new YoutrackCreateIssueOnBuildFailure("PROJECT", "SUMMARY", "DESCRIPTION", YoutrackCreateIssueOnBuildFailure.FAILURE, null, null));
+                spy(new YoutrackCreateIssueOnBuildFailure("PROJECT", "SUMMARY", "DESCRIPTION", YoutrackCreateIssueOnBuildFailure.FAILURE, null, null,false));
 
         YouTrackSite youTrackSite = new YouTrackSite("site", "user", "password", "http://example.com");
         youTrackSite.setPluginEnabled(false);
@@ -78,7 +76,7 @@ public class YoutrackCreateIssueOnBuildFailureTest {
         BuildListener buildListener = mock(BuildListener.class);
 
         YoutrackCreateIssueOnBuildFailure youtrackCreateIssueOnBuildFailure =
-                spy(new YoutrackCreateIssueOnBuildFailure("PROJECT", "SUMMARY", "DESCRIPTION", YoutrackCreateIssueOnBuildFailure.FAILURE, null, null));
+                spy(new YoutrackCreateIssueOnBuildFailure("PROJECT", "SUMMARY", "DESCRIPTION", YoutrackCreateIssueOnBuildFailure.FAILURE, null, null,false));
 
         YouTrackSite youTrackSite = new YouTrackSite("site", "user", "password", "http://example.com");
         youTrackSite.setPluginEnabled(false);
@@ -102,7 +100,7 @@ public class YoutrackCreateIssueOnBuildFailureTest {
         BuildListener buildListener = mock(BuildListener.class);
 
         YoutrackCreateIssueOnBuildFailure youtrackCreateIssueOnBuildFailure =
-                spy(new YoutrackCreateIssueOnBuildFailure("PROJECT", "SUMMARY", "DESCRIPTION", YoutrackCreateIssueOnBuildFailure.FAILUREORUNSTABL, null, null));
+                spy(new YoutrackCreateIssueOnBuildFailure("PROJECT", "SUMMARY", "DESCRIPTION", YoutrackCreateIssueOnBuildFailure.FAILUREORUNSTABL, null, null,false));
 
         YouTrackSite youTrackSite = new YouTrackSite("site", "user", "password", "http://example.com");
         youTrackSite.setPluginEnabled(false);
@@ -122,7 +120,6 @@ public class YoutrackCreateIssueOnBuildFailureTest {
     }
 
     @Test
-    @Ignore
     public void testUnstableAndCreateIssueOnUnstable() throws IOException, InterruptedException {
         AbstractBuild build = mock(AbstractBuild.class);
         Launcher launcher = mock(Launcher.class);
@@ -130,7 +127,7 @@ public class YoutrackCreateIssueOnBuildFailureTest {
 
 
         YoutrackCreateIssueOnBuildFailure youtrackCreateIssueOnBuildFailure =
-                spy(new YoutrackCreateIssueOnBuildFailure("PROJECT", "SUMMARY", "DESCRIPTION", YoutrackCreateIssueOnBuildFailure.FAILUREORUNSTABL, null, null));
+                spy(new YoutrackCreateIssueOnBuildFailure("PROJECT", "SUMMARY", "DESCRIPTION", YoutrackCreateIssueOnBuildFailure.FAILUREORUNSTABL, null, null,false));
 
         YouTrackSite youTrackSite = new YouTrackSite("site", "user", "password", "http://example.com");
         youTrackSite.setPluginEnabled(false);
@@ -147,18 +144,21 @@ public class YoutrackCreateIssueOnBuildFailureTest {
 
 
         final List<CreateIssueCommand> commandList = new ArrayList<CreateIssueCommand>();
-        Answer answer = new Answer<Object>() {
-            public Object answer(InvocationOnMock invocation) throws Throwable {
+        Answer<Command> answer = new Answer<Command>() {
+            public Command answer(InvocationOnMock invocation) throws Throwable {
                 CreateIssueCommand command = new CreateIssueCommand();
                 command.project = (String) invocation.getArguments()[2];
                 command.summary = (String) invocation.getArguments()[3];
                 command.description = (String) invocation.getArguments()[4];
                 command.command = (String) invocation.getArguments()[5];
                 commandList.add(command);
-                return null;
+                Command issuedCommand = new Command();
+                issuedCommand.setStatus(Command.Status.OK);
+                issuedCommand.setIssueId("PROJECT-1");
+                return issuedCommand;
             }
         };
-        doAnswer(answer).when(server).createIssue(Mockito.anyString(),Mockito.any(User.class),Mockito.anyString(),Mockito.anyString(),Mockito.anyString(),Mockito.anyString());
+        doAnswer(answer).when(server).createIssue(Mockito.anyString(), Mockito.any(User.class), Mockito.anyString(), Mockito.anyString(), Mockito.anyString(), Mockito.anyString(), Matchers.<File>any());
 
         User user = new User();
         user.setLoggedIn(true);
@@ -166,12 +166,11 @@ public class YoutrackCreateIssueOnBuildFailureTest {
         when(server.login("user", "password")).thenReturn(user);
         youtrackCreateIssueOnBuildFailure.perform(build, launcher, buildListener);
         String s = stream.toString();
-        assertThat(s.trim(), equalTo(""));
+        assertThat(s.trim(), equalTo("Created new YouTrack issue PROJECT-1"));
         assertThat(1, equalTo(commandList.size()));
     }
 
     @Test
-    @Ignore
     public void testVariableExpansion() throws IOException, InterruptedException {
         AbstractBuild build = mock(AbstractBuild.class);
         Launcher launcher = mock(Launcher.class);
@@ -179,7 +178,7 @@ public class YoutrackCreateIssueOnBuildFailureTest {
 
 
         YoutrackCreateIssueOnBuildFailure youtrackCreateIssueOnBuildFailure =
-                spy(new YoutrackCreateIssueOnBuildFailure("project", "${VAR1}", "${VAR2}", YoutrackCreateIssueOnBuildFailure.FAILUREORUNSTABL, null, "${VAR3}"));
+                spy(new YoutrackCreateIssueOnBuildFailure("project", "${VAR1}", "${VAR2}", YoutrackCreateIssueOnBuildFailure.FAILUREORUNSTABL, null, "${VAR3}",false));
 
         YouTrackSite youTrackSite = new YouTrackSite("site", "user", "password", "http://example.com");
         youTrackSite.setPluginEnabled(false);
@@ -200,18 +199,21 @@ public class YoutrackCreateIssueOnBuildFailureTest {
 
 
         final List<CreateIssueCommand> commandList = new ArrayList<CreateIssueCommand>();
-        Answer answer = new Answer<Object>() {
-            public Object answer(InvocationOnMock invocation) throws Throwable {
+        Answer<Command> answer = new Answer<Command>() {
+            public Command answer(InvocationOnMock invocation) throws Throwable {
                 CreateIssueCommand command = new CreateIssueCommand();
                 command.project = (String) invocation.getArguments()[2];
                 command.summary = (String) invocation.getArguments()[3];
                 command.description = (String) invocation.getArguments()[4];
                 command.command = (String) invocation.getArguments()[5];
                 commandList.add(command);
-                return null;
+                Command issuedCommand = new Command();
+                issuedCommand.setStatus(Command.Status.OK);
+                issuedCommand.setIssueId("project-1");
+                return issuedCommand;
             }
         };
-        doAnswer(answer).when(server).createIssue(Mockito.anyString(),Mockito.any(User.class),Mockito.anyString(),Mockito.anyString(),Mockito.anyString(),Mockito.anyString());
+        doAnswer(answer).when(server).createIssue(Mockito.anyString(), Mockito.any(User.class), Mockito.anyString(), Mockito.anyString(), Mockito.anyString(), Mockito.anyString(), Matchers.<File>any());
 
         User user = new User();
         user.setLoggedIn(true);
@@ -219,7 +221,7 @@ public class YoutrackCreateIssueOnBuildFailureTest {
         when(server.login("user", "password")).thenReturn(user);
         youtrackCreateIssueOnBuildFailure.perform(build, launcher, buildListener);
         String s = stream.toString();
-        assertThat(s.trim(), equalTo(""));
+        assertThat(s.trim(), equalTo("Created new YouTrack issue project-1"));
         assertThat(1, equalTo(commandList.size()));
         CreateIssueCommand createIssueCommand = commandList.get(0);
         assertThat("v1", equalTo(createIssueCommand.summary));
@@ -228,7 +230,6 @@ public class YoutrackCreateIssueOnBuildFailureTest {
     }
 
     @Test
-    @Ignore
     public void testDefaultValues() throws IOException, InterruptedException {
         FreeStyleProject mock = mock(FreeStyleProject.class);
         AbstractBuild build = spy(new FreeStyleBuild(mock));
@@ -236,7 +237,7 @@ public class YoutrackCreateIssueOnBuildFailureTest {
         BuildListener buildListener = mock(BuildListener.class);
 
         YoutrackCreateIssueOnBuildFailure youtrackCreateIssueOnBuildFailure =
-                spy(new YoutrackCreateIssueOnBuildFailure("project", "", "", YoutrackCreateIssueOnBuildFailure.FAILUREORUNSTABL, null, null));
+                spy(new YoutrackCreateIssueOnBuildFailure("project", "", "", YoutrackCreateIssueOnBuildFailure.FAILUREORUNSTABL, null, null,false));
 
         YouTrackSite youTrackSite = new YouTrackSite("site", "user", "password", "http://example.com");
         youTrackSite.setPluginEnabled(false);
@@ -258,18 +259,21 @@ public class YoutrackCreateIssueOnBuildFailureTest {
 
 
         final List<CreateIssueCommand> commandList = new ArrayList<CreateIssueCommand>();
-        Answer answer = new Answer<Object>() {
-            public Object answer(InvocationOnMock invocation) throws Throwable {
+        Answer<Command> answer = new Answer<Command>() {
+            public Command answer(InvocationOnMock invocation) throws Throwable {
                 CreateIssueCommand command = new CreateIssueCommand();
                 command.project = (String) invocation.getArguments()[2];
                 command.summary = (String) invocation.getArguments()[3];
                 command.description = (String) invocation.getArguments()[4];
                 command.command = (String) invocation.getArguments()[5];
                 commandList.add(command);
-                return null;
+                Command issuedCommand = new Command();
+                issuedCommand.setStatus(Command.Status.OK);
+                issuedCommand.setIssueId("project-1");
+                return issuedCommand;
             }
         };
-        doAnswer(answer).when(server).createIssue(Mockito.anyString(), Mockito.any(User.class), Mockito.anyString(), Mockito.anyString(), Mockito.anyString(), Mockito.anyString());
+        doAnswer(answer).when(server).createIssue(Mockito.anyString(), Mockito.any(User.class), Mockito.anyString(), Mockito.anyString(), Mockito.anyString(), Mockito.anyString(), Matchers.<File>any());
 
         User user = new User();
         user.setLoggedIn(true);
@@ -277,7 +281,7 @@ public class YoutrackCreateIssueOnBuildFailureTest {
         when(server.login("user", "password")).thenReturn(user);
         youtrackCreateIssueOnBuildFailure.perform(build, launcher, buildListener);
         String s = stream.toString();
-        assertThat(s.trim(), equalTo(""));
+        assertThat(s.trim(), equalTo("Created new YouTrack issue project-1"));
         assertThat(1, equalTo(commandList.size()));
         CreateIssueCommand createIssueCommand = commandList.get(0);
         assertThat("Build failure in build 1", equalTo(createIssueCommand.summary));

@@ -20,6 +20,7 @@ import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.StaplerRequest;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.List;
 
@@ -33,19 +34,21 @@ public class YoutrackCreateIssueOnBuildFailure extends Notifier {
     @Getter @Setter private String threshold;
     @Getter @Setter private String visibility;
     @Getter @Setter private String command;
+    @Getter @Setter private boolean attachBuildLog;
 
     public static final String FAILURE = "failure";
 
     public static final String FAILUREORUNSTABL = "failureOrUnstable";
 
     @DataBoundConstructor
-    public YoutrackCreateIssueOnBuildFailure(String project, String summary, String description, String threshold, String visibility, String command) {
+    public YoutrackCreateIssueOnBuildFailure(String project, String summary, String description, String threshold, String visibility, String command, boolean attachBuildLog) {
         this.project = project;
         this.summary = summary;
         this.description = description;
         this.threshold = threshold;
         this.visibility = visibility;
         this.command = command;
+        this.attachBuildLog = attachBuildLog;
     }
 
     @Override
@@ -85,7 +88,11 @@ public class YoutrackCreateIssueOnBuildFailure extends Notifier {
                 description = environment.expand(description);
             }
 
-            Command issue = server.createIssue(youTrackSite.getName(), user, project, title, description, command);
+            File buildLog = null;
+            if (attachBuildLog) {
+                buildLog = build.getLogFile();
+            }
+            Command issue = server.createIssue(youTrackSite.getName(), user, project, title, description, command, buildLog);
             YouTrackCommandAction youTrackCommandAction = build.getAction(YouTrackCommandAction.class);
             if (youTrackCommandAction == null) {
                 youTrackCommandAction = new YouTrackCommandAction(build);

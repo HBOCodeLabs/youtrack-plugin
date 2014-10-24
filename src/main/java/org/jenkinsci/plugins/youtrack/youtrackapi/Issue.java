@@ -7,6 +7,9 @@ import org.xml.sax.Attributes;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * This object represents an issue.
  */
@@ -51,6 +54,13 @@ public class Issue {
         if (id != null ? !id.equals(issue.id) : issue.id != null) return false;
 
         return true;
+    }
+
+    @Override
+    public String toString() {
+        return "Issue{" +
+                "id='" + id + '\'' +
+                '}';
     }
 
     @Override
@@ -124,6 +134,84 @@ public class Issue {
                 } else if (currentField.equals("resolved")) {
                     issue.resolved = stringBuilder.toString();
                 }
+            }
+        }
+    }
+
+    public static class IssueSearchHandler extends DefaultHandler {
+        @Getter
+        private List<Issue> issueList = new ArrayList<Issue>();
+
+        @Override
+        public void startElement(String uri, String localName, String qName, Attributes attributes) throws SAXException {
+            super.startElement(uri, localName, qName, attributes);
+            if (qName.equals("issue")) {
+                String issueId = attributes.getValue("id");
+                issueList.add(new Issue(issueId));
+            }
+        }
+    }
+
+    public static class IssueSearchSuggestionHandler extends DefaultHandler {
+        @Getter
+        private List<Suggestion> suggestions = new ArrayList<Suggestion>();
+
+        private String prefix;
+        private String suffix;
+        private String option;
+        private String description;
+        private int completionStart;
+        private int completionEnd;
+        private int matchStart;
+        private int matchEnd;
+
+        private StringBuilder stringBuilder = new StringBuilder();
+        private boolean inItem;
+
+        @Override
+        public void startElement(String uri, String localName, String qName, Attributes attributes) throws SAXException {
+            super.startElement(uri, localName, qName, attributes);
+            stringBuilder.setLength(0);
+            if (qName.equals("item")) {
+                inItem = true;
+            } else if(qName.equals("completion")) {
+                completionStart = Integer.parseInt(attributes.getValue("start"));
+                completionEnd = Integer.parseInt(attributes.getValue("end"));
+            } else if (qName.equals("match")) {
+                matchStart = Integer.parseInt(attributes.getValue("start"));
+                matchEnd = Integer.parseInt(attributes.getValue("end"));
+            }
+        }
+
+        @Override
+        public void characters(char[] ch, int start, int length) throws SAXException {
+            stringBuilder.append(ch, start, length);
+        }
+
+        @Override
+        public void endElement(String uri, String localName, String qName) throws SAXException {
+            super.endElement(uri, localName, qName);
+            if (qName.equals("item")) {
+                inItem = false;
+                Suggestion suggestion = new Suggestion();
+                suggestion.setOption(option);
+                suggestion.setDescription(description);
+                suggestion.setSuffix(suffix);
+                suggestion.setPrefix(prefix);
+                suggestion.setCompletionStart(completionStart);
+                suggestion.setCompletionEnd(completionEnd);
+                suggestion.setMatchStart(matchStart);
+                suggestion.setMatchEnd(matchEnd);
+
+                suggestions.add(suggestion);
+            } else if (qName.equals("suffix")) {
+                suffix = stringBuilder.toString();
+            } else if (qName.equals("option")) {
+                option = stringBuilder.toString();
+            } else if (qName.equals("description")) {
+                description = stringBuilder.toString();
+            } else if (qName.equals("prefix")) {
+                prefix = stringBuilder.toString();
             }
         }
     }

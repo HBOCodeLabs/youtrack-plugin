@@ -68,6 +68,14 @@
                     </f:entry>
 
                     <f:block>
+                        <strong>${%prefix_commands}</strong>
+                        <p>
+                            ${%prefix_commands.summary}
+                        </p>
+                        <f:repeatableProperty field="prefixCommandPairs"  minimum="0" />
+                    </f:block>
+
+                    <f:block>
                         <strong>${%build_updater}</strong>
                     </f:block>
 
@@ -90,13 +98,7 @@
                         <f:textbox name="youtrack.project"/>
                     </f:entry>
 
-                    <f:block>
-                        <strong>${%prefix_commands}</strong>
-                        <p>
-                            ${%prefix_commands.summary}
-                        </p>
-                        <f:repeatableProperty field="prefixCommandPairs"  minimum="0" />
-                    </f:block>
+
 
 
                 </j:when>

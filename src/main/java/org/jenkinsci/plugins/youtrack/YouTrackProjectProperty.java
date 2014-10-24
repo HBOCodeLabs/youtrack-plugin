@@ -148,10 +148,15 @@ public class YouTrackProjectProperty extends JobProperty<AbstractProject<?, ?>> 
                 return null;
             }
 
-            Object prefixCommandArray = ((JSONObject) formData.get("pluginEnabled")).get("prefixCommandPairs");
+            if (formData != null) {
+                JSONObject enabled = (JSONObject) formData.get("pluginEnabled");
+                if (enabled != null) {
+                    Object prefixCommandArray = enabled.get("prefixCommandPairs");
+                    List<PrefixCommandPair> commandPairs = req.bindJSONToList(PrefixCommandPair.class, prefixCommandArray);
+                    ypp.setPrefixCommandPairs(commandPairs);
+                }
+            }
 
-            List<PrefixCommandPair> commandPairs = req.bindJSONToList(PrefixCommandPair.class, prefixCommandArray);
-            ypp.setPrefixCommandPairs(commandPairs);
 
             return ypp;
         }

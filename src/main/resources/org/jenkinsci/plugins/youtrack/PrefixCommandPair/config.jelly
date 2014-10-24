@@ -28,7 +28,7 @@ THE SOFTWARE.
     <f:entry field="prefix" title="${%prefix_commands.prefix}">
         <f:textbox/>
     </f:entry>
-    <f:entry field="prefix_commands.command" title="${%prefix_commands.command}">
+    <f:entry field="command" title="${%prefix_commands.command}">
         <f:textbox/>
     </f:entry>
     <f:entry title=""> <div align="right"> <f:repeatableDeleteButton /> </div> </f:entry>

@@ -1,5 +1,14 @@
 package org.jenkinsci.plugins.youtrack.youtrackapi;
 
+import org.apache.commons.httpclient.Header;
+import org.apache.commons.httpclient.HttpClient;
+import org.apache.commons.httpclient.methods.PostMethod;
+import org.apache.commons.httpclient.methods.PutMethod;
+import org.apache.commons.httpclient.methods.multipart.FilePart;
+import org.apache.commons.httpclient.methods.multipart.MultipartRequestEntity;
+import org.apache.commons.httpclient.methods.multipart.Part;
+import org.apache.commons.httpclient.methods.multipart.StringPart;
+import org.apache.commons.httpclient.params.HttpMethodParams;
 import org.jenkinsci.plugins.youtrack.Command;
 import org.apache.commons.lang.StringUtils;
 import org.xml.sax.Attributes;
@@ -67,16 +76,11 @@ public class YouTrackServer {
         this.serverUrl = serverUrl;
     }
 
-    public Command createIssue(String siteName, User user, String project, String title, String description, String command) {
-        Command cmd = createIssuePUT(siteName, user, project, title, description, command);
-        if (cmd.getStatus() == Command.Status.FAILED) {
-            cmd = createIssuePOST(siteName, user, project, title, description, command);
-        }
-
-        return cmd;
+    public Command createIssue(String siteName, User user, String project, String title, String description, String command, File attachment) {
+        return createIssuePOST(siteName, user, project, title, description, command, attachment);
     }
 
-    private Command createIssuePOST(String siteName, User user, String project, String title, String description, String command) {
+    private Command createIssuePOST(String siteName, User user, String project, String title, String description, String command, File attachment) {
         Command cmd = new Command();
         cmd.setCommand("[Create issue]");
         cmd.setDate(new Date());
@@ -91,20 +95,30 @@ public class YouTrackServer {
         try {
             String params = "project="+URLEncoder.encode(project, "UTF-8")+"&summary="+URLEncoder.encode(title, "UTF-8")+"&description=" + URLEncoder.encode(description, "UTF-8");
 
-            URL url = new URL(serverUrl + "/rest/issue?" + params);
-            HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
-            urlConnection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-            for (String cookie : user.getCookies()) {
-                urlConnection.setRequestProperty("Cookie", cookie);
-            }
             // Against documentation. This call is supposed to be PUT, but only POST is working.
-            urlConnection.setRequestMethod("POST");
+            PostMethod postMethod = new PostMethod(serverUrl + "/rest/issue");
 
-            int responseCode = urlConnection.getResponseCode();
+            for (String cookie : user.getCookies()) {
+                postMethod.addRequestHeader("Cookie", cookie);
+            }
+
+            List<Part> parts = new ArrayList<Part>();
+            parts.add(new StringPart("project", project, "UTF-8"));
+            parts.add(new StringPart("summary", title, "UTF-8"));
+            parts.add(new StringPart("description", description, "UTF-8"));
+            if(attachment != null) {
+                parts.add(new FilePart("attachment", attachment));
+            }
+            Part[] partsArray = {};
+            Part[] array = parts.toArray(partsArray);
+            postMethod.setRequestEntity(new MultipartRequestEntity(array, new HttpMethodParams()));
+
+            HttpClient httpClient = new HttpClient();
+            int responseCode = httpClient.executeMethod(postMethod);
             // Because we're varying in the POST vs. PUT call, check for a couple possible
             // success responses, though currently I'm only ever seeing 200 returned.
             if (responseCode == HttpURLConnection.HTTP_CREATED || responseCode == HttpURLConnection.HTTP_OK) {
-                BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(urlConnection.getInputStream()));
+                BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(postMethod.getResponseBodyAsStream()));
                 StringBuilder stringBuilder = new StringBuilder();
                 for (String l = null; (l = bufferedReader.readLine()) != null;) {
                     stringBuilder.append(l).append("\n");
@@ -136,7 +150,7 @@ public class YouTrackServer {
                 return cmd;
             }
 
-            cmd.setResponse(getErrorMessage(urlConnection.getErrorStream()));
+            cmd.setResponse(getErrorMessage(postMethod.getResponseBodyAsStream()));
             LOGGER.log(Level.WARNING, "Did not create issue: " + cmd.getResponse());
         } catch (MalformedURLException e) {
             cmd.setResponse(e.getMessage());
@@ -148,57 +162,6 @@ public class YouTrackServer {
         return cmd;
     }
 
-    private Command createIssuePUT(String siteName, User user, String project, String title, String description, String command) {
-        Command cmd = new Command();
-        cmd.setCommand("[Create issue]");
-        cmd.setDate(new Date());
-        cmd.setSiteName(siteName);
-
-        if (user == null || !user.isLoggedIn()) {
-            cmd.setStatus(Command.Status.NOT_LOGGED_IN);
-            return null;
-        }
-
-        cmd.setStatus(Command.Status.FAILED);
-        try {
-            String params = "project="+URLEncoder.encode(project, "UTF-8")+"&summary="+URLEncoder.encode(title, "UTF-8")+"&description=" + URLEncoder.encode(description, "UTF-8");
-
-            URL url = new URL(serverUrl + "/rest/issue?" + params);
-            HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
-            urlConnection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-            for (String cookie : user.getCookies()) {
-                urlConnection.setRequestProperty("Cookie", cookie);
-            }
-            urlConnection.setRequestMethod("PUT");
-
-            int responseCode = urlConnection.getResponseCode();
-            if (responseCode == HttpURLConnection.HTTP_CREATED) {
-                System.out.println("Created issue");
-                String location = urlConnection.getHeaderField("Location");
-                String issueId = location.substring(location.lastIndexOf("/") + 1);
-
-
-                Issue issue = new Issue(issueId);
-                if (command != null && !command.equals("")) {
-                    applyCommand(siteName, user, issue, command, "", null, false);
-                }
-                cmd.setIssueId(issueId);
-                cmd.setStatus(Command.Status.OK);
-                return cmd;
-            }
-
-            cmd.setStatus(Command.Status.FAILED);
-            cmd.setResponse(getErrorMessage(urlConnection.getErrorStream()));
-            LOGGER.log(Level.WARNING, "Did not create issue: " + cmd.getResponse());
-        } catch (MalformedURLException e) {
-            cmd.setResponse(e.getMessage());
-            LOGGER.log(Level.WARNING, "Did not create issue", e);
-        } catch (IOException e) {
-            cmd.setResponse(e.getMessage());
-            LOGGER.log(Level.WARNING, "Did not create issue", e);
-        }
-        return cmd;
-    }
 
     public List<Group> getGroups(User user) {
         List<Group> groups = new ArrayList<Group>();
@@ -753,6 +716,70 @@ public class YouTrackServer {
         return null;
     }
 
+    public List<Issue> search(User user, String searchQuery) {
+        try {
+            URL url = new URL(serverUrl + "/rest/issue?filter=" + URLEncoder.encode(searchQuery, "UTF-8") + "&max=" + Integer.MAX_VALUE);
+            HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
+            for (String cookie : user.getCookies()) {
+                urlConnection.setRequestProperty("Cookie", cookie);
+            }
+
+
+            int responseCode = urlConnection.getResponseCode();
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                try {
+                    SAXParserFactory factory = SAXParserFactory.newInstance();
+                    SAXParser saxParser = factory.newSAXParser();
+                    Issue.IssueSearchHandler issueSearchHandler = new Issue.IssueSearchHandler();
+                    saxParser.parse(urlConnection.getInputStream(), issueSearchHandler);
+                    return issueSearchHandler.getIssueList();
+                } catch (ParserConfigurationException e) {
+                    LOGGER.log(Level.WARNING, "Could not find issues", e);
+                } catch (SAXException e) {
+                    LOGGER.log(Level.WARNING, "Could not find issues", e);
+                }
+            }
+
+        } catch (MalformedURLException e) {
+            LOGGER.log(Level.WARNING, "Could not find issues", e);
+        } catch (IOException e) {
+            LOGGER.log(Level.WARNING, "Could not find issues", e);
+        }
+        return null;
+    }
+
+    public List<Suggestion> searchSuggestions(User user, String current) {
+        try {
+            URL url = new URL(serverUrl + "/rest/issue/intellisense?filter=" + URLEncoder.encode(current, "UTF-8"));
+            HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
+            for (String cookie : user.getCookies()) {
+                urlConnection.setRequestProperty("Cookie", cookie);
+            }
+
+
+            int responseCode = urlConnection.getResponseCode();
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                try {
+                    SAXParserFactory factory = SAXParserFactory.newInstance();
+                    SAXParser saxParser = factory.newSAXParser();
+                    Issue.IssueSearchSuggestionHandler issueSearchHandler = new Issue.IssueSearchSuggestionHandler();
+                    saxParser.parse(urlConnection.getInputStream(), issueSearchHandler);
+                    return issueSearchHandler.getSuggestions();
+                } catch (ParserConfigurationException e) {
+                    LOGGER.log(Level.WARNING, "Could not find issues", e);
+                } catch (SAXException e) {
+                    LOGGER.log(Level.WARNING, "Could not find issues", e);
+                }
+            }
+
+        } catch (MalformedURLException e) {
+            LOGGER.log(Level.WARNING, "Could not find issues", e);
+        } catch (IOException e) {
+            LOGGER.log(Level.WARNING, "Could not find issues", e);
+        }
+        return new ArrayList<Suggestion>();
+    }
+
     private static class VersionHandler extends DefaultHandler {
         boolean inVersion = false;
         private StringBuilder stringBuilder = new StringBuilder();
@@ -825,7 +852,7 @@ public class YouTrackServer {
         public void startElement(String uri, String localName, String qName, Attributes attributes) throws SAXException {
             if (qName.equals("issue")) {
                 for (int i = 0; i < attributes.getLength(); ++i) {
-                    if (attributes.getQName(i) == "id") {
+                    if (attributes.getQName(i).equals("id")) {
                         issueId = attributes.getValue(i);
                         break;
                     }

@@ -68,7 +68,7 @@ public class YouTrackTestAction extends TestAction {
         YouTrackServer youTrackServer = new YouTrackServer(youTrackSite.getUrl());
         User mainUser = youTrackServer.login(youTrackSite.getUsername(), youTrackSite.getPassword());
 
-        Command issue = youTrackServer.createIssue(youTrackSite.getName(), mainUser, youTrackSite.getProject(), "Test case: " + id, careResult.getErrorStackTrace(), null);
+        Command issue = youTrackServer.createIssue(youTrackSite.getName(), mainUser, youTrackSite.getProject(), "Test case: " + id, careResult.getErrorStackTrace(), null, null);
         youtrackIssueId = issue.getIssueId();
         data.addLink(id, this);
         data.save();
